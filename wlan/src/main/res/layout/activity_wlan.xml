@@ -27,11 +27,15 @@
         android:id="@+id/connectedLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/wlan_item_selector"
+        android:clickable="true"
         android:orientation="vertical"
-        android:paddingBottom="10dp"
-        android:visibility="gone">
+        android:focusable="true"
+        android:visibility="gone"
+        tools:visibility="visible">
 
-        <Space
+        <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:layout_marginStart="30dp"
@@ -80,26 +84,15 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="10dp"
         android:layout_marginLeft="10dp"
-        android:text="附近的网络" />
+        android:paddingBottom="4dp"
+        android:text="附近的网络"
+        android:textColor="@android:color/black" />
 
-    <FrameLayout
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/wlanRecyclerView"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-
-        <Space
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_marginStart="30dp"
-            android:layout_marginLeft="30dp"
-            android:background="#8D8D8D" />
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/wlanRecyclerView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_marginTop="4dp"
-            android:background="@android:color/transparent"
-            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-            tools:listitem="@layout/wlan_item_layout" />
-    </FrameLayout>
+        android:layout_height="match_parent"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+        tools:listitem="@layout/wlan_item_layout" />
 </LinearLayout>

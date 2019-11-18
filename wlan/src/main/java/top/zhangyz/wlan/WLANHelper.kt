@@ -4,14 +4,12 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.net.wifi.ScanResult
-import android.net.wifi.WifiConfiguration
-import android.net.wifi.WifiInfo
-import android.net.wifi.WifiManager
+import android.net.wifi.*
 import android.util.Log
 
 class WLANHelper(private val wifiManager: WifiManager, val wlanListener: WLANListener? = null) {
     val scanList = mutableListOf<ScanResult>()
+    private var current: ScanResult? = null
 
     private val wifiReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -22,42 +20,33 @@ class WLANHelper(private val wifiManager: WifiManager, val wlanListener: WLANLis
                         -1
                     ).let { state ->
                         Log.i(TAG, "wifi状态：$state")
-                        if (WifiManager.WIFI_STATE_DISABLED == state) {
-                            wlanListener?.onDisconnect()
+                        wlanListener?.let {
+                            it.onStateChange(state)
+                            if (WifiManager.WIFI_STATE_DISABLED == state) {
+                                it.onEnable(false)
+                                it.onDisconnect()
+                                scanList.clear()
+                                current = null
+                                it.onNotify()
+                            } else if (WifiManager.WIFI_STATE_ENABLED == state) {
+                                it.onEnable(true)
+                                wifiManager.startScan()
+                            }
                         }
-                        wlanListener?.onStateChange(state)
+
                     }
                     WifiManager.NETWORK_STATE_CHANGED_ACTION -> {
                         Log.i(TAG, "wifi NETWORK_STATE_CHANGED_ACTION：")
+                        updateConnectInfo()
                     }
                     WifiManager.SCAN_RESULTS_AVAILABLE_ACTION -> {
                         Log.i(TAG, "wifi SCAN_RESULTS_AVAILABLE_ACTION：")
                         val scanResults = wifiManager.scanResults
                         scanResults.sortByDescending { it.level }
-                        val connectedInfo = wifiManager.connectionInfo?.also {
-                            Log.i(
-                                TAG,
-                                it.toString() + ", " + it.rssi + "," + getLevelResource(it.rssi)
-                            )
-                        }
-                        kotlin.run {
-                            connectedInfo?.let { info ->
-                                val ssid = info.ssid.substring(1, info.ssid.length - 1)
-                                scanResults.forEach {
-                                    Log.i(
-                                        TAG,
-                                        it.toString() + ", " + it.level + "," + getLevelResource(it.level)
-                                    )
-                                    if (ssid == it.SSID) {
-                                        scanResults.remove(it)
-                                        wlanListener?.connectedInfo(it)
-                                        return@run
-                                    }
-                                }
-                            }
-                        }
                         scanList.clear()
                         scanList.addAll(scanResults)
+                        current = null
+                        updateConnectInfo()
                         wlanListener?.onNotify()
                     }
                     WifiManager.SUPPLICANT_STATE_CHANGED_ACTION -> {
@@ -76,6 +65,43 @@ class WLANHelper(private val wifiManager: WifiManager, val wlanListener: WLANLis
         }
     }
 
+    private fun updateConnectInfo() {
+        kotlin.run {
+            val connectedInfo = wifiManager.connectionInfo?.also {
+                Log.i(
+                    TAG,
+                    it.toString() + ", " + it.rssi + "," + getLevelResource(it.rssi)
+                )
+            }
+            connectedInfo?.let { info ->
+                if (info.supplicantState == SupplicantState.COMPLETED) {
+                    val ssid = info.ssid.substring(1, info.ssid.length - 1)
+                    if (ssid.isNotEmpty())
+                        scanList.forEach {
+                            //                            Log.i(
+//                                TAG,
+//                                it.toString() + ", " + it.level + "," + getLevelResource(
+//                                    it.level
+//                                )
+//                            )
+                            if (ssid == it.SSID) {
+                                scanList.remove(it)
+                                current?.let {
+                                    scanList.add(0, it)
+                                }
+                                current = it
+                                wlanListener?.run {
+                                    connectedInfo(it)
+                                    onNotify()
+                                }
+                                return@run
+                            }
+                        }
+                }
+            }
+        }
+    }
+
     fun isOpen(): Boolean {
         return wifiManager.isWifiEnabled
     }
@@ -84,6 +110,10 @@ class WLANHelper(private val wifiManager: WifiManager, val wlanListener: WLANLis
         if (enable != wifiManager.isWifiEnabled) {
             wifiManager.isWifiEnabled = enable
         }
+    }
+
+    fun startScan() {
+        wifiManager.startScan()
     }
 
 
@@ -99,9 +129,6 @@ class WLANHelper(private val wifiManager: WifiManager, val wlanListener: WLANLis
             addAction(WifiManager.NETWORK_IDS_CHANGED_ACTION)
             addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
         })
-        if (isOpen()) {
-            wifiManager.startScan()
-        }
     }
 
     fun onStop(context: Context) {
@@ -155,9 +182,25 @@ class WLANHelper(private val wifiManager: WifiManager, val wlanListener: WLANLis
     }
 
     fun connect(config: WifiConfiguration) {
+        current?.let {
+            current = null
+            scanList.add(0, it)
+            wlanListener?.let {
+                it.onNotify()
+                it.onDisconnect()
+            }
+        }
         wifiManager.enableNetwork(
             getOldConfiguration(config.SSID)?.networkId ?: wifiManager.addNetwork(config), true
         )
+    }
+
+    fun disconnect() {
+        wifiManager.disconnect()
+    }
+
+    fun remove(config: WifiConfiguration) {
+        wifiManager.removeNetwork(config.networkId)
     }
 
     fun getOldConfiguration(ssid: String): WifiConfiguration? {
@@ -179,18 +222,20 @@ class WLANHelper(private val wifiManager: WifiManager, val wlanListener: WLANLis
         fun onStateChange(state: Int)
 
         fun connectedInfo(scanResult: ScanResult)
+        fun onEnable(enable: Boolean)
     }
 
     companion object {
 
         fun needPassword(scanResult: ScanResult): Boolean {
             return scanResult.capabilities.toUpperCase()
-                .let { it.contains("WPA") || it.contains("WEP") }
+                .let {
+                    it.contains("WPA") || it.contains("WEP")
+                }
         }
 
         fun getLevelResource(rssi: Int): Int {
             val level = WifiManager.calculateSignalLevel(rssi, 4)
-            Log.i(TAG, "信号等级：" + level.toString())
             return when (level) {
                 3 -> R.drawable.signal_wifi_3_bar
                 2 -> R.drawable.signal_wifi_2_bar

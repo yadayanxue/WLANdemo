@@ -3,7 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@android:color/white"
+    android:background="@drawable/wlan_item_selector"
+    android:clickable="true"
+    android:focusable="true"
     android:gravity="center"
     android:padding="3dp">
 
@@ -14,6 +16,7 @@
         android:layout_marginStart="30dp"
         android:layout_marginLeft="30dp"
         android:layout_weight="1"
+        android:textColor="@android:color/black"
         android:textSize="14sp"
         tools:text="wifi" />
 
@@ -22,7 +25,7 @@
         android:layout_width="30dp"
         android:layout_height="30dp"
         android:padding="4dp"
-        tools:src="@drawable/lock" />
+        android:src="@drawable/lock" />
 
     <ImageView
         android:id="@+id/wifiLevel"
