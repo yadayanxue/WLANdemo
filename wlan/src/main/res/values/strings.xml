@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">WLAN</string>
+    <string name="wlan_password_error">密码错误</string>
 </resources>

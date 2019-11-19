@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="reveal_color">#E9E9E9</color>
+    <color name="error_color">#F44336</color>
 </resources>

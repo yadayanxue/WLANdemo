@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.wifi.*
+import android.os.Parcelable
 import android.util.Log
 
 class WLANHelper(private val wifiManager: WifiManager, val wlanListener: WLANListener? = null) {
@@ -51,11 +52,15 @@ class WLANHelper(private val wifiManager: WifiManager, val wlanListener: WLANLis
                     }
                     WifiManager.SUPPLICANT_STATE_CHANGED_ACTION -> {
                         Log.i(TAG, "wifi SUPPLICANT_STATE_CHANGED_ACTION：")
-
-                    }
-                    WifiManager.NETWORK_IDS_CHANGED_ACTION -> {
-                        Log.i(TAG, "wifi NETWORK_IDS_CHANGED_ACTION：")
-
+                        val parcelableExtra =
+                            intent.getParcelableExtra<Parcelable>(WifiManager.EXTRA_NEW_STATE)
+                        val intExtra = intent.getIntExtra(WifiManager.EXTRA_SUPPLICANT_ERROR, 0)
+                        Log.i(TAG, " 验证：$intExtra,$parcelableExtra")
+                        if (WifiManager.ERROR_AUTHENTICATING == intExtra
+                        ) {
+                            wlanListener?.onFailed()
+                            return@let
+                        }
                     }
                     else -> {
                         Log.i(TAG, "wifi ELSE：$it")
@@ -91,7 +96,7 @@ class WLANHelper(private val wifiManager: WifiManager, val wlanListener: WLANLis
                                 }
                                 current = it
                                 wlanListener?.run {
-                                    connectedInfo(it)
+                                    onConnect(it)
                                     onNotify()
                                 }
                                 return@run
@@ -121,17 +126,16 @@ class WLANHelper(private val wifiManager: WifiManager, val wlanListener: WLANLis
         return wifiManager.connectionInfo
     }
 
-    fun onStart(context: Context) {
+    fun register(context: Context) {
         context.registerReceiver(wifiReceiver, IntentFilter().apply {
             addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION)
             addAction(WifiManager.WIFI_STATE_CHANGED_ACTION)
             addAction(WifiManager.SUPPLICANT_STATE_CHANGED_ACTION)
-            addAction(WifiManager.NETWORK_IDS_CHANGED_ACTION)
             addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
         })
     }
 
-    fun onStop(context: Context) {
+    fun unregister(context: Context) {
         context.unregisterReceiver(wifiReceiver)
     }
 
@@ -199,12 +203,10 @@ class WLANHelper(private val wifiManager: WifiManager, val wlanListener: WLANLis
         wifiManager.disconnect()
     }
 
-    fun remove(config: WifiConfiguration) {
-        wifiManager.removeNetwork(config.networkId)
-    }
+    fun remove(config: WifiConfiguration) = wifiManager.removeNetwork(config.networkId)
 
     fun getOldConfiguration(ssid: String): WifiConfiguration? {
-        wifiManager.configuredNetworks.forEach {
+        wifiManager.configuredNetworks?.forEach {
             if (ssid == it.SSID) return it
         }
         return null
@@ -213,7 +215,7 @@ class WLANHelper(private val wifiManager: WifiManager, val wlanListener: WLANLis
     interface WLANListener {
         fun onDisconnect()
 
-        fun onConnect()
+        fun onConnect(scanResult: ScanResult)
 
         fun onFailed()
 
@@ -221,7 +223,6 @@ class WLANHelper(private val wifiManager: WifiManager, val wlanListener: WLANLis
 
         fun onStateChange(state: Int)
 
-        fun connectedInfo(scanResult: ScanResult)
         fun onEnable(enable: Boolean)
     }
 
