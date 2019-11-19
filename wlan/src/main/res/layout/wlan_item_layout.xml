@@ -7,7 +7,7 @@
     android:clickable="true"
     android:focusable="true"
     android:gravity="center"
-    android:padding="3dp">
+    android:padding="6dp">
 
     <TextView
         android:id="@+id/wifiLabel"
@@ -17,7 +17,7 @@
         android:layout_marginLeft="30dp"
         android:layout_weight="1"
         android:textColor="@android:color/black"
-        android:textSize="14sp"
+        android:textSize="18sp"
         tools:text="wifi" />
 
     <ImageView

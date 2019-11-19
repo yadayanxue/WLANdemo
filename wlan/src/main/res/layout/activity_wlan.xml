@@ -5,6 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:animateLayoutChanges="true"
+    android:fitsSystemWindows="true"
     android:orientation="vertical"
     tools:context=".WLANActivity">
 
@@ -19,6 +20,7 @@
         android:paddingRight="10dp"
         android:paddingBottom="10dp"
         android:text="WLAN"
+        android:textSize="20sp"
         android:thumb="@drawable/thumb"
         android:track="@drawable/track"
         app:layout_constraintTop_toTopOf="parent" />
@@ -28,9 +30,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="10dp"
+        android:background="@drawable/wlan_item_selector"
         android:clickable="true"
-        android:orientation="vertical"
         android:focusable="true"
+        android:orientation="vertical"
         android:visibility="gone"
         tools:visibility="visible">
 
@@ -48,18 +51,32 @@
             android:padding="3dp">
 
             <ImageView
+                android:id="@+id/connectCheck"
                 android:layout_width="30dp"
                 android:layout_height="30dp"
-                android:padding="4dp"
                 android:src="@drawable/check" />
 
-            <TextView
-                android:id="@+id/connectLabel"
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:textSize="14sp"
-                tools:text="wifi" />
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/connectLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@android:color/black"
+                    android:textSize="18sp"
+                    tools:text="wifi" />
+
+                <TextView
+                    android:id="@+id/connectState"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="已连接"
+                    android:textSize="14sp" />
+            </LinearLayout>
 
             <ImageView
                 android:id="@+id/connectLock"

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.Rect
+import android.net.NetworkInfo
 import android.net.wifi.ScanResult
 import android.net.wifi.WifiConfiguration
 import android.net.wifi.WifiManager
@@ -30,7 +31,6 @@ class WLANActivity : AppCompatActivity(), CompoundButton.OnCheckedChangeListener
     }
 
     private var dialog: AlertDialog? = null
-    private var dialogLayout: View? = null
     private var wlanHelper: WLANHelper? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,6 +40,26 @@ class WLANActivity : AppCompatActivity(), CompoundButton.OnCheckedChangeListener
 
         (applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager)?.let {
             wlanHelper = WLANHelper(it, object : WLANHelper.WLANListener {
+
+                override fun onNetworkStateChange(networkInfo: NetworkInfo?) {
+                    if (networkInfo == null) {
+                        connectState.text = ""
+                        connectCheck.visibility = View.INVISIBLE
+                    } else {
+                        when (networkInfo.detailedState) {
+                            NetworkInfo.DetailedState.CONNECTING -> connectState.setText(R.string.wlan_state_connecting)
+                            NetworkInfo.DetailedState.CONNECTED -> connectState.setText(R.string.wlan_state_connected)
+                            NetworkInfo.DetailedState.DISCONNECTING -> connectState.setText(R.string.wlan_state_disconnecting)
+                            NetworkInfo.DetailedState.DISCONNECTED -> connectState.setText(R.string.wlan_state_disconnected)
+                            NetworkInfo.DetailedState.AUTHENTICATING -> connectState.setText(R.string.wlan_state_authenticating)
+                            NetworkInfo.DetailedState.OBTAINING_IPADDR -> connectState.setText(R.string.wlan_state_obtaining_ipaddr)
+                            NetworkInfo.DetailedState.FAILED -> connectState.setText(R.string.wlan_state_failed)
+                        }
+                        connectCheck.visibility =
+                            if (networkInfo.detailedState == NetworkInfo.DetailedState.CONNECTED) View.VISIBLE else View.INVISIBLE
+                    }
+                }
+
                 override fun onEnable(enable: Boolean) {
                     if (wifiSwitch.isChecked != enable) {
                         wifiSwitch.setOnCheckedChangeListener(null)
@@ -49,7 +69,6 @@ class WLANActivity : AppCompatActivity(), CompoundButton.OnCheckedChangeListener
                 }
 
                 override fun onConnect(scanResult: ScanResult) {
-                    cancelDialog()
                     connectedLayout.visibility = View.VISIBLE
                     connectLevel.setImageResource(WLANHelper.getLevelResource(scanResult.level))
                     connectLabel.text = scanResult.SSID
@@ -69,10 +88,6 @@ class WLANActivity : AppCompatActivity(), CompoundButton.OnCheckedChangeListener
                 }
 
                 override fun onFailed() {
-                    dialogLayout?.wlanTip?.let {
-                        it.visibility = View.VISIBLE
-                        it.setText(R.string.wlan_password_error)
-                    }
                 }
             }).apply {
                 wifiSwitch.isChecked = isOpen()
@@ -80,6 +95,11 @@ class WLANActivity : AppCompatActivity(), CompoundButton.OnCheckedChangeListener
         }
         wifiSwitch.setOnCheckedChangeListener(this)
 
+        connectedLayout.setOnClickListener {
+            wlanHelper?.current?.let {
+                showDialog(it)
+            }
+        }
         wlanRecyclerView.adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             override fun onCreateViewHolder(p0: ViewGroup, p1: Int): RecyclerView.ViewHolder =
                 object : RecyclerView.ViewHolder(
@@ -94,55 +114,8 @@ class WLANActivity : AppCompatActivity(), CompoundButton.OnCheckedChangeListener
 
             override fun onBindViewHolder(p0: RecyclerView.ViewHolder, p1: Int) {
                 wlanHelper?.scanList?.get(p1)?.let { result ->
-                    p0.itemView.setOnClickListener { _ ->
-                        if (dialog != null) return@setOnClickListener
-                        dialogLayout =
-                            layoutInflater.inflate(R.layout.wlan_password_dialog, null)?.apply {
-                                val oldWifi = getOldConfiguration(result.SSID)
-                                dialog =
-                                    AlertDialog.Builder(this@WLANActivity)
-                                        .setNegativeButton("", null)
-                                        .setPositiveButton("", null).setView(this).create()
-                                        .also { dialog ->
-                                            wlanDialogTitle.text = result.SSID
-                                            wlanPwdEditText.addTextChangedListener {
-                                                wlanConnect.isEnabled = it != null && it.length > 7
-                                            }
-                                            if (oldWifi != null) {
-                                                wlanPwdEditText.hint = "新密码"
-                                                wlanForget.run {
-                                                    visibility = View.VISIBLE
-                                                    setOnClickListener {
-                                                        wlanHelper?.remove(oldWifi)
-                                                        cancelDialog()
-                                                    }
-                                                }
-                                                wlanConnect.run {
-                                                    isEnabled = true
-                                                    setOnClickListener {
-                                                        if (wlanPwdEditText.text.length > 7)
-                                                            wlanHelper?.connect(
-                                                                result,
-                                                                wlanPwdEditText.text.toString()
-                                                            )
-                                                        else
-                                                            wlanHelper?.connect(oldWifi)
-                                                    }
-                                                }
-                                            } else {
-                                                wlanConnect.setOnClickListener {
-                                                    wlanHelper?.connect(
-                                                        result,
-                                                        wlanPwdEditText.text.toString()
-                                                    )
-                                                }
-                                            }
-                                            wlanCancel.setOnClickListener {
-                                                cancelDialog()
-                                            }
-                                            dialog.show()
-                                        }
-                            }
+                    p0.itemView.setOnClickListener {
+                        showDialog(result)
                     }
                     p0.itemView.wifiLabel.text = result.SSID
                     p0.itemView.wifiLock.visibility =
@@ -150,7 +123,6 @@ class WLANActivity : AppCompatActivity(), CompoundButton.OnCheckedChangeListener
                     p0.itemView.wifiLevel.setImageResource(WLANHelper.getLevelResource(result.level))
                 }
             }
-
         }
 
         wlanRecyclerView.addItemDecoration(object : RecyclerView.ItemDecoration() {
@@ -199,6 +171,68 @@ class WLANActivity : AppCompatActivity(), CompoundButton.OnCheckedChangeListener
         wlanHelper?.register(this)
     }
 
+    private fun showDialog(
+        result: ScanResult
+    ): Boolean {
+        val needPassword = WLANHelper.needPassword(result)
+        if (dialog != null) return true
+        layoutInflater.inflate(R.layout.wlan_password_dialog, null)?.apply {
+            dialog =
+                AlertDialog.Builder(this@WLANActivity)
+                    .setNegativeButton("", null)
+                    .setPositiveButton("", null).setView(this).create()
+                    .also { dialog ->
+                        dialog.setCancelable(false)
+                        wlanDialogTitle.text = result.SSID
+                        if (!needPassword) {
+                            wlanPwdEditText.isEnabled = false
+                            wlanPwdEditText.hint = "无密码"
+                        }
+                        wlanPwdEditText.addTextChangedListener {
+                            wlanConnect.isEnabled = it != null && it.length > 7
+                        }
+                        val oldWifi = getOldConfiguration(result.SSID)
+                        if (oldWifi != null) {
+                            wlanForget.run {
+                                visibility = View.VISIBLE
+                                setOnClickListener {
+                                    wlanHelper?.remove(oldWifi)
+                                    cancelDialog()
+                                }
+                            }
+                            wlanConnect.setOnClickListener {
+                                if (wlanPwdEditText.text.length > 7) {
+                                    wlanHelper?.connect(
+                                        result,
+                                        wlanPwdEditText.text.toString()
+                                    )
+                                } else {
+                                    wlanHelper?.connect(oldWifi)
+                                }
+                                cancelDialog()
+                            }
+                        } else {
+                            if (needPassword) {
+                                wlanConnect.isEnabled = false
+                                wlanPwdEditText.hint = "密码"
+                            }
+                            wlanConnect.setOnClickListener {
+                                wlanHelper?.connect(
+                                    result,
+                                    wlanPwdEditText.text.toString()
+                                )
+                                cancelDialog()
+                            }
+                        }
+                        wlanCancel.setOnClickListener {
+                            cancelDialog()
+                        }
+                        dialog.show()
+                    }
+        }
+        return false
+    }
+
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         if (item.itemId == android.R.id.home) {
             finish()
@@ -216,7 +250,6 @@ class WLANActivity : AppCompatActivity(), CompoundButton.OnCheckedChangeListener
     private fun cancelDialog() {
         dialog?.run {
             dialog = null
-            dialogLayout = null
             cancel()
         }
     }

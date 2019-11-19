@@ -1,4 +1,10 @@
 <resources>
     <string name="app_name">WLAN</string>
-    <string name="wlan_password_error">密码错误</string>
+    <string name="wlan_state_authenticating">正在进行身份验证…</string>
+    <string name="wlan_state_obtaining_ipaddr">正在获取ip地址…</string>
+    <string name="wlan_state_connecting">正在连接…</string>
+    <string name="wlan_state_connected">已连接</string>
+    <string name="wlan_state_disconnecting">断开连接中…</string>
+    <string name="wlan_state_disconnected">已断开</string>
+    <string name="wlan_state_failed">连接失败</string>
 </resources>
